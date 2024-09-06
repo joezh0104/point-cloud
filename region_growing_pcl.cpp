@@ -17,50 +17,50 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    // 记录程序开始时间
+    // Record the start time of the program
     auto start = std::chrono::high_resolution_clock::now();
 
-    // 记录程序开始时间 - 读取点云文件
+    // Record the start time - reading the point cloud file
     auto start_reading = std::chrono::high_resolution_clock::now();
 
-    // 使用 PointXYZRGB 读取包含颜色信息的点云
+    // Use PointXYZRGB to read the point cloud with color information
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     if (pcl::io::loadPCDFile<pcl::PointXYZRGB>(argv[1], *cloud) == -1) {
         PCL_ERROR("Couldn't read file\n");
         return -1;
     }
 
-    // 记录读取点云结束时间
+    // Record the end time of reading the point cloud
     auto end_reading = std::chrono::high_resolution_clock::now();
 
-    // 打印原始点云的点数
+    // Print the number of points in the original point cloud
     std::cout << "Original cloud size: " << cloud->points.size() << " points" << std::endl;
 
-    // 将字符串转换为浮点数
+    // Convert the string to a floating-point number
     float leaf_size = std::stof(argv[2]);
 
-    // 记录开始时间 - 体素下采样
+    // Record the start time - voxel downsampling
     auto start_downsampling = std::chrono::high_resolution_clock::now();
 
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
     if (leaf_size > 0) {
-        // 体素下采样
+        // Voxel downsampling
         pcl::VoxelGrid<pcl::PointXYZRGB> sor;
         sor.setInputCloud(cloud);
-        sor.setLeafSize(leaf_size, leaf_size, leaf_size);  // 设置体素大小
+        sor.setLeafSize(leaf_size, leaf_size, leaf_size);  // Set voxel size
         sor.filter(*cloud_filtered);
 
         std::cout << "Filtered cloud size: " << cloud_filtered->points.size() << " points" << std::endl;
     } else {
-        // 如果 leaf_size 为 0，则不进行下采样
+        // If leaf_size is 0, no downsampling is applied
         cloud_filtered = cloud;
         std::cout << "Leaf size is 0, no downsampling applied." << std::endl;
     }
 
-    // 记录下采样结束时间
+    // Record the end time of downsampling
     auto end_downsampling = std::chrono::high_resolution_clock::now();
 
-    // 记录开始时间 - 计算法向量
+    // Record the start time - normal vector calculation
     auto start_normals = std::chrono::high_resolution_clock::now();
 
     pcl::search::Search<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
@@ -71,36 +71,36 @@ int main(int argc, char** argv) {
     normal_estimator.setKSearch(50);
     normal_estimator.compute(*normals);
 
-    // 记录计算法向量结束时间
+    // Record the end time of normal vector calculation
     auto end_normals = std::chrono::high_resolution_clock::now();
 
-    // 记录开始时间 - 区域生长算法
+    // Record the start time - region growing algorithm
     auto start_region_growing = std::chrono::high_resolution_clock::now();
     
     pcl::RegionGrowing<pcl::PointXYZRGB, pcl::Normal> reg;
-    reg.setMinClusterSize(300);  // 设置最小的簇大小
-    reg.setMaxClusterSize(1000000);  // 设置最大的簇大小
+    reg.setMinClusterSize(300);  // Set minimum cluster size
+    reg.setMaxClusterSize(1000000);  // Set maximum cluster size
     reg.setSearchMethod(tree);
-    reg.setNumberOfNeighbours(30);  // 邻域大小
+    reg.setNumberOfNeighbours(30);  // Neighborhood size
     reg.setInputCloud(cloud_filtered);
     reg.setInputNormals(normals);
-    reg.setSmoothnessThreshold(3.0 / 180.0 * M_PI);  // 设置平滑度阈值
-    reg.setCurvatureThreshold(1.0);  // 设置曲率阈值
+    reg.setSmoothnessThreshold(3.0 / 180.0 * M_PI);  // Set smoothness threshold
+    reg.setCurvatureThreshold(1.0);  // Set curvature threshold
 
-    // 提取聚类
+    // Extract clusters
     std::vector<pcl::PointIndices> clusters;
     reg.extract(clusters);
 
-    // 记录区域生长算法结束时间
+    // Record the end time of the region growing algorithm
     auto end_region_growing = std::chrono::high_resolution_clock::now();
 
-    // 记录开始时间 - 改变聚类颜色并存储
+    // Record the start time - coloring clusters and storing
     auto start_color_and_store = std::chrono::high_resolution_clock::now();
 
-    // 初始化随机数生成器
+    // Initialize random number generator
     std::srand(static_cast<unsigned int>(std::time(0)));
 
-    // 创建一个新的点云来存储所有聚类
+    // Create a new point cloud to store all clusters
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_all_clusters(new pcl::PointCloud<pcl::PointXYZRGB>);
 
     int j = 0;
@@ -110,47 +110,47 @@ int main(int argc, char** argv) {
             cloud_cluster->push_back((*cloud_filtered)[idx]);
         }
 
-        // 生成随机颜色
+        // Generate random colors
         int r = std::rand() % 256;
         int g = std::rand() % 256;
         int b = std::rand() % 256;
 
-        // 更新当前聚类中每个点的颜色
+        // Update the color of each point in the current cluster
         for (auto& point : cloud_cluster->points) {
             point.r = r;
             point.g = g;
             point.b = b;
         }
 
-        // 将当前聚类添加到所有聚类的点云中
+        // Add the current cluster to the point cloud containing all clusters
         *cloud_all_clusters += *cloud_cluster;
 
         j++;
     }
 
-    // 记录改变聚类颜色并存储结束时间
+    // Record the end time of coloring clusters and storing
     auto end_color_and_store = std::chrono::high_resolution_clock::now();
 
-    // 记录开始时间 - 保存新PCD文件
+    // Record the start time - saving the new PCD file
     auto start_saving_pcd = std::chrono::high_resolution_clock::now();
 
-    // 生成新的文件名，在原文件名基础上添加后缀
+    // Generate a new filename by adding a suffix to the original file name
     std::string input_filename = argv[1];
     std::string output_filename = input_filename.substr(0, input_filename.find_last_of(".")) + "_rg_pcl.pcd";
 
-    // 保存修改后的点云到新的文件
+    // Save the modified point cloud to the new file
     pcl::io::savePCDFileASCII(output_filename, *cloud_all_clusters);
 
-    // 记录保存新PCD文件结束时间
+    // Record the end time of saving the new PCD file
     auto end_saving_pcd = std::chrono::high_resolution_clock::now();
 
-    // 记录程序结束时间
+    // Record the end time of the program
     auto end = std::chrono::high_resolution_clock::now();
-    // 打印保存后的信息
+    // Print the information after saving
     std::cout << "Saved point cloud to " << output_filename << " with " << cloud_all_clusters->points.size() << " points." 
     << " and " << clusters.size() << " clusters " << std::endl;
 
-    // 记录每个阶段的时间并打印
+    // Record the time taken by each stage and print
     std::chrono::duration<double> duration_reading = end_reading - start_reading;
     std::chrono::duration<double> duration_downsampling = end_downsampling - start_downsampling;
     std::chrono::duration<double> duration_normals = end_normals - start_normals;
