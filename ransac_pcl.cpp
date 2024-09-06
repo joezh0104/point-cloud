@@ -14,28 +14,28 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    // 初始化随机数种子
-    std::srand(static_cast<unsigned int>(std::time(0))); // 使用当前时间作为种子
+    // Initialize random number seed
+    std::srand(static_cast<unsigned int>(std::time(0))); // Use the current time as the seed
 
-    // 记录程序开始时间
+    // Record the start time of the program
     auto start = std::chrono::high_resolution_clock::now();
 
-    // 记录读取 PCD 文件的开始时间
+    // Record the start time of reading the PCD file
     auto read_start = std::chrono::high_resolution_clock::now();
 
-    // 读取点云
+    // Read the point cloud
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     if (pcl::io::loadPCDFile<pcl::PointXYZRGB>(argv[1], *cloud) == -1) {
         PCL_ERROR("Couldn't read file \n");
         return -1;
     }
 
-    // 记录读取 PCD 文件的结束时间
+    // Record the end time of reading the PCD file
     auto read_end = std::chrono::high_resolution_clock::now();
 
     std::cout << "Loaded point cloud with " << cloud->points.size() << " points." << std::endl;
 
-    // 创建平面模型的分割对象
+    // Create a segmentation object for the planar model
     pcl::SACSegmentation<pcl::PointXYZRGB> seg;
     pcl::ExtractIndices<pcl::PointXYZRGB> extract;
     pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
@@ -51,11 +51,11 @@ int main(int argc, char** argv) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_f(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_planes(new pcl::PointCloud<pcl::PointXYZRGB>);
 
-    // 记录 RANSAC 处理的开始时间
+    // Record the start time of RANSAC processing
     auto ransac_start = std::chrono::high_resolution_clock::now();
 
     while (cloud->points.size() > 1500) {
-        // 拟合平面
+        // Fit a plane
         seg.setInputCloud(cloud);
         seg.segment(*inliers, *coefficients);
 
@@ -64,19 +64,14 @@ int main(int argc, char** argv) {
             break;
         }
 
-        // std::cout << "Plane " << i << " coefficients: " << coefficients->values[0] << " "
-        //           << coefficients->values[1] << " "
-        //           << coefficients->values[2] << " "
-        //           << coefficients->values[3] << std::endl;
-
-        // 提取平面内的点
+        // Extract the points belonging to the plane
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_plane(new pcl::PointCloud<pcl::PointXYZRGB>);
         extract.setInputCloud(cloud);
         extract.setIndices(inliers);
         extract.setNegative(false);
         extract.filter(*cloud_plane);
 
-        // 为平面点云分配随机颜色
+        // Assign random colors to the points of the plane
         int r = std::rand() % 256;
         int g = std::rand() % 256;
         int b = std::rand() % 256;
@@ -86,12 +81,10 @@ int main(int argc, char** argv) {
             point.b = static_cast<uint8_t>(b);
         }
 
-        // std::cout << "Point cloud representing the planar component: " << cloud_plane->points.size() << " points." << std::endl;
-
-        // 将当前平面点云添加到总的点云中
+        // Add the current plane point cloud to the total point cloud
         *cloud_planes += *cloud_plane;
 
-        // 移除平面内的点，继续寻找下一个平面
+        // Remove the points belonging to the plane and continue searching for the next plane
         extract.setNegative(true);
         extract.filter(*cloud_f);
         *cloud = *cloud_f;
@@ -99,30 +92,30 @@ int main(int argc, char** argv) {
         i++;
     }
 
-    // 记录 RANSAC 处理的结束时间
+    // Record the end time of RANSAC processing
     auto ransac_end = std::chrono::high_resolution_clock::now();
 
-    // 基于源文件名生成新的 PCD 文件名
+    // Generate a new PCD file name based on the input file name
     std::string input_filename = argv[1];
     std::string output_filename = input_filename.substr(0, input_filename.find_last_of(".")) + "_ransac_pcl.pcd";
 
-    // 记录保存 PCD 文件的开始时间
+    // Record the start time of saving the PCD file
     auto save_start = std::chrono::high_resolution_clock::now();
 
-    // 保存所有平面到一个 PCD 文件
+    // Save all the planes to a PCD file
     pcl::io::savePCDFileASCII(output_filename, *cloud_planes);
 
-    // 记录保存 PCD 文件的结束时间
+    // Record the end time of saving the PCD file
     auto save_end = std::chrono::high_resolution_clock::now();
 
-    // 记录程序结束时间
+    // Record the end time of the program
     auto end = std::chrono::high_resolution_clock::now();
 
     std::cout << "Saved point cloud to " << output_filename << " with " << cloud_planes->points.size() << " points." 
     << " and " << i << " clusters " << std::endl;
 
 
-    // 计算并打印所有时间
+    // Calculate and print all timings
     std::chrono::duration<double> read_duration = read_end - read_start;
     std::chrono::duration<double> ransac_duration = ransac_end - ransac_start;
     std::chrono::duration<double> save_duration = save_end - save_start;
